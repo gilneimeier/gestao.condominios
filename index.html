@@ -6,8 +6,11 @@
     <title>MW Administradora - Gestão e Faturas PIX</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Biblioteca localForage (IndexedDB - Remove limite de 5MB do localStorage) -->
+    <!-- Biblioteca localForage (IndexedDB) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <!-- Firebase App (Core) e Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
         @media print {
             .no-print { display: none; }
@@ -49,13 +52,13 @@
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-orange-100 pb-4">
                 <div>
                     <h1 class="text-3xl font-extrabold text-orange-600 flex items-center gap-2">🏢 MW Administradora</h1>
-                    <p class="text-sm text-slate-500 font-medium">Sistema Completo de Gestão e Rateio com PIX por Mês</p>
+                    <p class="text-sm text-slate-500 font-medium">Sistema Completo de Gestão e Rateio com Faturas PIX & Firebase</p>
                 </div>
                 
                 <!-- PAINEL DE ARMAZENAMENTO E SEGURANÇA -->
                 <div class="flex flex-wrap gap-2 items-center bg-orange-50 p-2 rounded-xl border border-orange-200">
-                    <span id="storageStatus" class="text-xs font-bold text-orange-800 px-2">💾 IndexedDB</span>
-                    <button onclick="conectarPastaLocal()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm" title="Vincular Pasta no PC">📁 Pasta PC</button>
+                    <span id="storageStatus" class="text-xs font-bold text-orange-800 px-2">🔥 Firebase: Conectando...</span>
+                    <button onclick="abrirModalFirebase()" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm" title="Configurar Firebase">⚙️ Firebase</button>
                     <button onclick="exportarBackup()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm" title="Exportar Backup">⬇️ Backup</button>
                     <label class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer" title="Importar Backup">
                         ⬆️ Importar
@@ -137,11 +140,11 @@
                     <!-- Unidades (Geral do Condomínio) -->
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                         <h2 class="text-lg font-bold text-orange-700 flex items-center gap-2">🏠 Cadastro de Unidades e Frações</h2>
-                        <p class="text-xs text-slate-500">Cadastre a unidade, a fração ideal (ex: 0.10), proprietário e morador.</p>
+                        <p class="text-xs text-slate-500">Cadastre a unidade (ex: Bloco A - Apto 101), fração ideal, proprietário e morador.</p>
                         
                         <form id="unitForm" class="space-y-3">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <input type="text" id="unitName" placeholder="Unidade (Ex: Apto 101)" required class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-orange-500">
+                                <input type="text" id="unitName" placeholder="Unidade (Ex: Bloco A - Apto 101)" required class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-orange-500">
                                 <input type="number" id="unitArea" placeholder="Fração Ideal (Ex: 0.10)" step="0.01" required class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-orange-500">
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -217,11 +220,21 @@
                                 <input type="number" id="expAmount" placeholder="R$" step="0.01" required class="w-28 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-orange-500">
                                 <button type="submit" id="btnSubmitExpense" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition">Lançar</button>
                             </div>
-                            <div class="p-2 border border-orange-100 rounded-lg bg-orange-50/50">
-                                <label class="block text-[11px] font-bold text-orange-800 mb-1">UNIDADES QUE PAGAM ESSA DESPESA (Desmarque as isentas):</label>
-                                <div id="expenseUnitsCheckboxes" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto text-xs"></div>
+                            
+                            <!-- SELETOR DE UNIDADES -->
+                            <div class="p-3 border border-orange-200 rounded-xl bg-orange-50/50 space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <label class="block text-[11px] font-bold text-orange-900 uppercase tracking-wide">SELECIONE QUAIS UNIDADES VÃO PAGAR ESTA DESPESA:</label>
+                                    <div class="space-x-2 text-[11px]">
+                                        <button type="button" onclick="marcarTodasUnidades(true)" class="text-orange-700 font-bold hover:underline">Marcar Todas</button>
+                                        <span class="text-slate-300">|</span>
+                                        <button type="button" onclick="marcarTodasUnidades(false)" class="text-orange-700 font-bold hover:underline">Desmarcar Todas</button>
+                                    </div>
+                                </div>
+                                <div id="expenseUnitsCheckboxes" class="flex flex-col gap-1.5 max-h-48 overflow-y-auto p-1.5 text-xs bg-white rounded-lg border border-orange-100"></div>
                             </div>
                         </form>
+
                         <div class="overflow-x-auto max-h-96 overflow-y-auto border border-slate-100 rounded-lg">
                             <table class="w-full text-left text-sm">
                                 <thead class="bg-orange-50 text-orange-800 sticky top-0">
@@ -270,6 +283,46 @@
 
     </div>
 
+    <!-- MODAL DE CONFIGURAÇÃO DO FIREBASE -->
+    <div id="modalFirebase" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-orange-200 space-y-4">
+            <h3 class="text-lg font-bold text-orange-700">🔥 Configurar Conexão Firebase</h3>
+            <p class="text-xs text-slate-500">Cole abaixo as credenciais do seu projeto Firebase (obtidas no Console do Firebase > Configurações do Projeto > Web App).</p>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600">API Key:</label>
+                    <input type="text" id="fbApiKey" placeholder="AIzaSy..." class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600">Auth Domain:</label>
+                    <input type="text" id="fbAuthDomain" placeholder="projeto.firebaseapp.com" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600">Project ID:</label>
+                    <input type="text" id="fbProjectId" placeholder="meu-projeto" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600">Storage Bucket:</label>
+                    <input type="text" id="fbStorageBucket" placeholder="projeto.appspot.com" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600">Messaging Sender ID:</label>
+                    <input type="text" id="fbMessagingSenderId" placeholder="123456789" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600">App ID:</label>
+                    <input type="text" id="fbAppId" placeholder="1:1234:web:abcd" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="fecharModalFirebase()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition">Cancelar</button>
+                <button onclick="salvarConfigFirebase()" class="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition shadow-sm">Salvar e Conectar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL DE CRIAÇÃO DE NOVO MÊS -->
     <div id="modalNewMonth" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-orange-200 space-y-4">
@@ -298,16 +351,15 @@
 
     <script>
         let appData = { activeId: null, condos: [], editingUnitId: null, editingExpenseId: null, editingDiscountId: null };
-        let directoryHandle = null;
+        let firestoreDb = null;
+        let isSaving = false;
 
-        // Configuração do localForage para suporte a IndexedDB
         localforage.config({
             name: 'MW_Administradora',
             storeName: 'mw_admin_store'
         });
 
-        // Configuração Inicial de Login
-        document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", async () => {
             const savedPassword = localStorage.getItem('mw_admin_password');
             const loginTitle = document.getElementById('loginTitle');
             const loginSubtitle = document.getElementById('loginSubtitle');
@@ -321,6 +373,8 @@
             } else {
                 loginHint.innerText = "Dica: A senha é salva localmente no seu computador.";
             }
+
+            await inicializarFirebaseSeConfigurado();
         });
 
         function handleLogin(event) {
@@ -354,80 +408,116 @@
             document.getElementById('loginScreen').classList.remove('hidden');
         }
 
-        // Carrega do IndexedDB com migração automática caso existam dados no localStorage antigo
-        async function carregarDadosIniciais() {
-            try {
-                const legacySaved = localStorage.getItem('mw_admin_pix');
-                if (legacySaved) {
-                    try {
-                        appData = JSON.parse(legacySaved);
-                        await localforage.setItem('mw_admin_pix', appData);
-                        localStorage.removeItem('mw_admin_pix'); // Libera o localStorage
-                    } catch (e) {
-                        console.error("Erro na migração do localStorage:", e);
-                    }
-                } else {
-                    const saved = await localforage.getItem('mw_admin_pix');
-                    if (saved) {
-                        appData = typeof saved === 'string' ? JSON.parse(saved) : saved;
-                    }
-                }
-            } catch (e) { 
-                console.error("Erro ao carregar dados do IndexedDB:", e); 
-            }
-            render();
-        }
-
-        // Salva os dados de forma assíncrona no IndexedDB
-        async function saveData() {
-            try {
-                await localforage.setItem('mw_admin_pix', appData);
-            } catch (e) {
-                console.error("Erro ao salvar no IndexedDB:", e);
-                alert("Erro de armazenamento: " + e.message);
-            }
-
-            if (directoryHandle) {
-                try {
-                    const fileHandle = await directoryHandle.getFileHandle('mw_admin_dados.json', { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(JSON.stringify(appData, null, 2));
-                    await writable.close();
-                    document.getElementById('storageStatus').innerText = '💾 Pasta Local: Sincronizado';
-                } catch (err) {
-                    console.error("Erro ao gravar na pasta local:", err);
-                    document.getElementById('storageStatus').innerText = '💾 Erro na Pasta Local';
-                }
-            }
-            render();
-        }
-
-        async function conectarPastaLocal() {
-            if (!window.showDirectoryPicker) {
-                alert("Seu navegador não suporta acesso direto a pastas locais. Utilize os botões de Exportar/Importar Backup.");
+        async function inicializarFirebaseSeConfigurado() {
+            const fbConfigStr = localStorage.getItem('mw_admin_firebase_config');
+            if (!fbConfigStr) {
+                document.getElementById('storageStatus').innerText = '💾 Local (IndexedDB) - Sem Firebase';
                 return;
             }
             try {
-                directoryHandle = await window.showDirectoryPicker();
-                document.getElementById('storageStatus').innerText = `📁 Pasta: ${directoryHandle.name}`;
-                
-                try {
-                    const fileHandle = await directoryHandle.getFileHandle('mw_admin_dados.json');
-                    const file = await fileHandle.getFile();
-                    const text = await file.text();
-                    appData = JSON.parse(text);
-                    await saveData();
-                    alert("Dados carregados com sucesso da pasta local!");
-                } catch (nf) {
-                    await saveData();
-                    alert("Pasta vinculada com sucesso! Um arquivo de banco de dados foi criado nela.");
+                const config = JSON.parse(fbConfigStr);
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(config);
                 }
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    console.error(err);
-                    alert("Não foi possível acessar a pasta.");
-                }
+                firestoreDb = firebase.firestore();
+                document.getElementById('storageStatus').innerText = '🔥 Firebase: Conectado';
+
+                // Escuta em tempo real do documento principal
+                firestoreDb.collection('sistema').doc('dados_administradora').onSnapshot((doc) => {
+                    if (doc.exists && !isSaving) {
+                        const remoteData = doc.data();
+                        if (remoteData && remoteData.condos) {
+                            appData = remoteData;
+                            render();
+                        }
+                    }
+                }, (err) => {
+                    console.error("Erro no listener do Firebase:", err);
+                    document.getElementById('storageStatus').innerText = '⚠️ Firebase Offline (Modo Local)';
+                });
+            } catch (e) {
+                console.error("Erro ao inicializar Firebase:", e);
+                document.getElementById('storageStatus').innerText = '❌ Erro config Firebase';
             }
+        }
+
+        function abrirModalFirebase() {
+            const saved = localStorage.getItem('mw_admin_firebase_config');
+            if (saved) {
+                try {
+                    const cfg = JSON.parse(saved);
+                    document.getElementById('fbApiKey').value = cfg.apiKey || '';
+                    document.getElementById('fbAuthDomain').value = cfg.authDomain || '';
+                    document.getElementById('fbProjectId').value = cfg.projectId || '';
+                    document.getElementById('fbStorageBucket').value = cfg.storageBucket || '';
+                    document.getElementById('fbMessagingSenderId').value = cfg.messagingSenderId || '';
+                    document.getElementById('fbAppId').value = cfg.appId || '';
+                } catch(e){}
+            }
+            document.getElementById('modalFirebase').classList.remove('hidden');
+        }
+
+        function fecharModalFirebase() {
+            document.getElementById('modalFirebase').classList.add('hidden');
+        }
+
+        async function salvarConfigFirebase() {
+            const config = {
+                apiKey: document.getElementById('fbApiKey').value.trim(),
+                authDomain: document.getElementById('fbAuthDomain').value.trim(),
+                projectId: document.getElementById('fbProjectId').value.trim(),
+                storageBucket: document.getElementById('fbStorageBucket').value.trim(),
+                messagingSenderId: document.getElementById('fbMessagingSenderId').value.trim(),
+                appId: document.getElementById('fbAppId').value.trim()
+            };
+
+            if (!config.apiKey || !config.projectId) {
+                alert("Preencha pelo menos a API Key e o Project ID.");
+                return;
+            }
+
+            localStorage.setItem('mw_admin_firebase_config', JSON.stringify(config));
+            fecharModalFirebase();
+            alert("Configuração salva com sucesso! Reiniciando conexão...");
+            window.location.reload();
+        }
+
+        async function carregarDadosIniciais() {
+            try {
+                if (firestoreDb) {
+                    const doc = await firestoreDb.collection('sistema').doc('dados_administradora').get();
+                    if (doc.exists) {
+                        appData = doc.data();
+                    } else {
+                        // Se não existe no Firestore, tenta carregar local ou cria estrutura inicial
+                        const saved = await localforage.getItem('mw_admin_pix');
+                        if (saved) appData = typeof saved === 'string' ? JSON.parse(saved) : saved;
+                        await saveData(); // Salva no Firestore pela primeira vez
+                    }
+                } else {
+                    const saved = await localforage.getItem('mw_admin_pix');
+                    if (saved) appData = typeof saved === 'string' ? JSON.parse(saved) : saved;
+                }
+            } catch (e) { 
+                console.error("Erro ao carregar dados:", e); 
+            }
+            render();
+        }
+
+        async function saveData() {
+            isSaving = true;
+            try {
+                await localforage.setItem('mw_admin_pix', appData);
+                if (firestoreDb) {
+                    await firestoreDb.collection('sistema').doc('dados_administradora').set(appData);
+                    document.getElementById('storageStatus').innerText = '🔥 Firebase: Sincronizado';
+                }
+            } catch (e) {
+                console.error("Erro ao salvar dados:", e);
+                alert("Erro de salvamento: " + e.message);
+            }
+            setTimeout(() => { isSaving = false; }, 500);
+            render();
         }
 
         function exportarBackup() {
@@ -492,10 +582,7 @@
 
         async function editCondoName() {
             const condo = getActiveCondo();
-            if (!condo) {
-                alert("Nenhum condomínio selecionado.");
-                return;
-            }
+            if (!condo) { alert("Nenhum condomínio selecionado."); return; }
             const newName = prompt("Digite o novo nome do condomínio:", condo.name);
             if (newName !== null && newName.trim() !== "") {
                 condo.name = newName.trim();
@@ -505,18 +592,11 @@
 
         async function deleteCondo() {
             const condo = getActiveCondo();
-            if (!condo) {
-                alert("Nenhum condomínio selecionado.");
-                return;
-            }
+            if (!condo) { alert("Nenhum condomínio selecionado."); return; }
 
             if (confirm(`Tem certeza de que deseja excluir permanentemente o condomínio "${condo.name}"?\nTodos os meses, despesas e faturas deste condomínio serão apagados!`)) {
                 appData.condos = appData.condos.filter(c => c.id !== condo.id);
-                if (appData.condos.length > 0) {
-                    appData.activeId = appData.condos[0].id;
-                } else {
-                    appData.activeId = null;
-                }
+                appData.activeId = appData.condos.length > 0 ? appData.condos[0].id : null;
                 await saveData();
             }
         }
@@ -576,13 +656,7 @@
 
             condo.months = condo.months || [];
             const newMonthId = Date.now();
-            condo.months.push({
-                id: newMonthId,
-                referencia: refName,
-                vencimento: '',
-                expenses: [],
-                discounts: []
-            });
+            condo.months.push({ id: newMonthId, referencia: refName, vencimento: '', expenses: [], discounts: [] });
             condo.activeMonthId = newMonthId;
             fecharModalNewMonth();
             await saveData();
@@ -590,19 +664,13 @@
 
         async function updateField(field, val) {
             const condo = getActiveCondo();
-            if(condo) { 
-                condo[field] = val; 
-                await saveData(); 
-            }
+            if(condo) { condo[field] = val; await saveData(); }
         }
 
         async function updateMonthField(field, val) {
             const condo = getActiveCondo();
             const month = getActiveMonth(condo);
-            if(month) {
-                month[field] = val;
-                await saveData();
-            }
+            if(month) { month[field] = val; await saveData(); }
         }
 
         function handleLogoUpload(event) {
@@ -636,6 +704,12 @@
             }
         }
 
+        function marcarTodasUnidades(marcar) {
+            document.querySelectorAll('input[name="expUnit"]').forEach(cb => {
+                cb.checked = marcar;
+            });
+        }
+
         function editUnit(id) {
             const condo = getActiveCondo();
             const unit = condo.units.find(u => u.id === id);
@@ -665,7 +739,8 @@
             document.getElementById('expAmount').value = exp.amount;
             
             document.querySelectorAll('input[name="expUnit"]').forEach(cb => {
-                cb.checked = !exp.excludedUnits.includes(Number(cb.value));
+                const uId = Number(cb.value);
+                cb.checked = !exp.excludedUnits.includes(uId);
             });
             
             appData.editingExpenseId = id;
@@ -750,12 +825,7 @@
 
             if (appData.editingUnitId) {
                 const unit = condo.units.find(u => u.id === appData.editingUnitId);
-                if (unit) { 
-                    unit.name = uName; 
-                    unit.area = uArea; 
-                    unit.owner = uOwner; 
-                    unit.resident = uResident; 
-                }
+                if (unit) { unit.name = uName; unit.area = uArea; unit.owner = uOwner; unit.resident = uResident; }
                 appData.editingUnitId = null;
                 const btn = document.getElementById('btnSubmitUnit');
                 btn.innerText = 'Cadastrar Unidade'; btn.className = 'w-full bg-slate-800 hover:bg-slate-900 text-white py-2.5 rounded-lg text-sm font-bold transition shadow-sm';
@@ -772,6 +842,7 @@
             e.preventDefault();
             const condo = getActiveCondo();
             const month = getActiveMonth(condo);
+            
             const excludedUnits = Array.from(document.querySelectorAll('input[name="expUnit"]:not(:checked)')).map(cb => Number(cb.value));
             
             if (appData.editingExpenseId) {
@@ -788,6 +859,7 @@
                 month.expenses.push({ id: Date.now(), description: document.getElementById('expDesc').value, amount: parseFloat(document.getElementById('expAmount').value), excludedUnits });
             }
             e.target.reset();
+            document.querySelectorAll('input[name="expUnit"]').forEach(cb => cb.checked = false);
             await saveData();
         };
 
@@ -803,11 +875,7 @@
 
             if (appData.editingDiscountId) {
                 const disc = month.discounts.find(d => d.id === appData.editingDiscountId);
-                if (disc) {
-                    disc.unitId = uId;
-                    disc.description = desc;
-                    disc.amount = amt;
-                }
+                if (disc) { disc.unitId = uId; disc.description = desc; disc.amount = amt; }
                 appData.editingDiscountId = null;
                 const btn = document.getElementById('btnSubmitDiscount');
                 btn.innerText = 'Lançar'; btn.className = 'bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition';
@@ -820,9 +888,7 @@
 
         async function deleteUnit(id) { 
             getActiveCondo().units = getActiveCondo().units.filter(u => u.id !== id); 
-            getActiveCondo().months.forEach(m => {
-                m.discounts = (m.discounts || []).filter(d => d.unitId !== id);
-            });
+            getActiveCondo().months.forEach(m => { m.discounts = (m.discounts || []).filter(d => d.unitId !== id); });
             await saveData(); 
         }
         async function deleteExpense(id) { 
@@ -843,7 +909,7 @@
             const mainContainer = document.getElementById('mainContainer');
             const emptyState = document.getElementById('emptyState');
 
-            if (appData.condos.length === 0) {
+            if (!appData.condos || appData.condos.length === 0) {
                 select.innerHTML = '<option>Nenhum condomínio</option>';
                 mainContainer.classList.add('hidden');
                 emptyState.classList.remove('hidden');
@@ -891,7 +957,7 @@
 
             if (condo.units.length === 0) {
                 unitTableBody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>`;
-                chkContainer.innerHTML = '<span class="text-slate-500">Cadastre unidades para selecioná-las aqui.</span>';
+                chkContainer.innerHTML = '<span class="text-slate-500 text-center py-2">Cadastre unidades para selecioná-las aqui.</span>';
             } else {
                 unitTableBody.innerHTML = condo.units.map(u => {
                     totalArea += u.area;
@@ -909,7 +975,12 @@
                         </tr>`;
                 }).join('');
                 
-                chkContainer.innerHTML = condo.units.map(u => `<label class="inline-flex items-center gap-1 bg-white px-2 py-1 rounded border border-orange-200 cursor-pointer shadow-sm"><input type="checkbox" name="expUnit" value="${u.id}" checked class="accent-orange-600"><span class="font-bold text-slate-700">${u.name}</span></label>`).join('');
+                chkContainer.innerHTML = condo.units.map(u => `
+                    <label class="flex items-center gap-2 bg-white p-2 rounded-lg border border-orange-200 cursor-pointer shadow-sm hover:border-orange-400 transition w-full">
+                        <input type="checkbox" name="expUnit" value="${u.id}" class="accent-orange-600 w-4 h-4 rounded shrink-0">
+                        <span class="font-bold text-slate-800 text-xs">${u.name} ${u.resident ? '<span class="font-normal text-slate-500">('+u.resident+')</span>' : ''}</span>
+                    </label>
+                `).join('');
                 
                 if(appData.editingExpenseId) {
                     const exp = month.expenses.find(e => e.id === appData.editingExpenseId);
@@ -979,9 +1050,7 @@
             });
 
             month.discounts.forEach(d => {
-                if(shares[d.unitId]) {
-                    shares[d.unitId].discountTotal += d.amount;
-                }
+                if(shares[d.unitId]) { shares[d.unitId].discountTotal += d.amount; }
             });
 
             rateioBody.innerHTML = Object.values(shares).map(s => {
@@ -997,14 +1066,13 @@
 
                 return `<tr class="hover:bg-orange-50">
                         <td class="p-3 font-bold text-slate-900">${s.name} ${subMorador}</td>
-                        <td class="p-3">${s.area.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td class="p-3">${s.area.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits: 2})}</td>
                         <td class="p-3">${txtNotas}</td>
                         <td class="p-3 text-right font-extrabold text-orange-600 text-lg">R$ ${finalTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     </tr>`;
             }).join('');
         }
 
-        // RELATÓRIO MENSAL CONSOLIDADO EM FORMATO MATRICIAL COMPACTO (PADRÃO TRANSPARENTE)
         function gerarRelatorioGeral() {
             const condo = getActiveCondo();
             if(!condo || condo.units.length === 0) { alert('Cadastre unidades primeiro!'); return; }
@@ -1052,9 +1120,7 @@
 
             let expenseTotals = month.expenses.map((e, idx) => {
                 let colSum = 0;
-                Object.values(unitData).forEach(ud => {
-                    colSum += (ud.expenseValues[idx] || 0);
-                });
+                Object.values(unitData).forEach(ud => { colSum += (ud.expenseValues[idx] || 0); });
                 return colSum;
             });
 
@@ -1066,34 +1132,54 @@
                 <html><head><title>Planilha de Rateio - ${condo.name} (${refTexto})</title>
                 <script src="https://cdn.tailwindcss.com"></`+`script>
                 <style>
+                    @page {
+                        size: A4 landscape;
+                        margin: 8mm;
+                    }
                     @media print { 
                         .no-print { display: none !important; }
-                        body { font-size: 9px; }
-                        table th, table td { padding: 3px 5px !important; }
+                        body { 
+                            font-size: 7px !important; 
+                            -webkit-print-color-adjust: exact; 
+                            print-color-adjust: exact;
+                        }
+                        table th, table td { 
+                            padding: 2px 3px !important; 
+                            font-size: 7px !important;
+                        }
                     }
-                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #fff; font-family: sans-serif; font-size: 11px; }
-                    table th, table td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; white-space: nowrap; }
+                    body { 
+                        -webkit-print-color-adjust: exact; 
+                        print-color-adjust: exact; 
+                        background-color: #fff; 
+                        font-family: sans-serif; 
+                        font-size: 8px; 
+                        margin: 0;
+                        padding: 8px;
+                    }
+                    table th, table td { 
+                        border: 1px solid #cbd5e1; 
+                        padding: 3px 4px; 
+                        text-align: left; 
+                        white-space: nowrap; 
+                    }
                 </style>
                 </head>
-                <body class="p-4 text-slate-900">
-                    <div class="max-w-7xl mx-auto space-y-4">
-                        
-                        <!-- Cabeçalho Compacto -->
-                        <div class="flex justify-between items-center border-b-2 border-slate-800 pb-2">
+                <body class="text-slate-900">
+                    <div class="w-full space-y-2">
+                        <div class="flex justify-between items-center border-b-2 border-slate-800 pb-1.5">
                             <div>
-                                <h1 class="text-base font-extrabold text-slate-900 uppercase">${condo.name}</h1>
-                                <p class="text-[10px] text-slate-600 font-bold">PLANILHA RATEIO DESPESAS CONDOMINIAIS – ${refTexto}</p>
+                                <h1 class="text-xs font-extrabold text-slate-900 uppercase">${condo.name}</h1>
+                                <p class="text-[8px] text-slate-600 font-bold">PLANILHA RATEIO DESPESAS CONDOMINIAIS – ${refTexto}</p>
                             </div>
-                            <button onclick="window.print()" class="no-print bg-slate-900 text-white px-3 py-1.5 rounded font-bold shadow text-xs">🖨️ Imprimir Planilha</button>
+                            <button onclick="window.print()" class="no-print bg-slate-900 text-white px-3 py-1 rounded font-bold shadow text-xs">🖨️ Imprimir Planilha</button>
                         </div>
-
-                        <!-- Tabela Matricial Compacta e Distribuída -->
                         <div class="overflow-x-auto">
                             <table class="w-full border-collapse">
                                 <thead class="bg-slate-100 text-slate-900 font-bold">
                                     <tr>
-                                        <th class="min-w-[100px]">UNIDADE</th>
-                                        <th class="w-16">FRAÇÃO</th>
+                                        <th class="min-w-[80px]">UNIDADE</th>
+                                        <th class="w-12">FRAÇÃO</th>
                                         ${month.expenses.map(e => `<th>${e.description}</th>`).join('')}
                                         ${month.discounts.length > 0 ? `<th>ABATIMENTOS</th>` : ''}
                                         <th class="text-right">TOTAL</th>
@@ -1102,14 +1188,11 @@
                                 <tbody>
                                     ${Object.values(unitData).map(ud => {
                                         let finalVal = ud.total < 0 ? 0 : ud.total;
-                                        
-                                        // Formatação limpa de abatimentos sem poluição visual
                                         let descDiscounts = ud.discountValues.map(disc => `<span class="text-red-600 font-semibold block">- R$ ${disc.amount.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`).join('');
-                                        
                                         return `
                                             <tr>
                                                 <td class="font-bold bg-slate-50">
-                                                    ${ud.name}${ud.resident ? `<span class="text-[9px] text-slate-500 font-normal block">Morador: ${ud.resident}</span>` : ''}
+                                                    ${ud.name}${ud.resident ? `<span class="text-[7px] text-slate-500 font-normal block">Morador: ${ud.resident}</span>` : ''}
                                                 </td>
                                                 <td>${ud.percent.toFixed(2)}\%</td>${month.expenses.map((e, idx) => {
                                                     const val = ud.expenseValues[idx];
@@ -1134,24 +1217,21 @@
                                 </tfoot>
                             </table>
                         </div>
-
-                        <!-- Rodapé com Descrição de Despesas otimizado -->
-                        <div class="mt-4 pt-3 border-t border-slate-300 space-y-1">
-                            <h3 class="font-bold text-[10px] uppercase tracking-wider text-slate-700">DESCRIÇÃO DESPESAS:</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-[10px]">
+                        <div class="mt-2 pt-1.5 border-t border-slate-300 space-y-1">
+                            <h3 class="font-bold text-[8px] uppercase tracking-wider text-slate-700">DESCRIÇÃO DESPESAS:</h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-0.5 text-[8px]">
                                 ${month.expenses.map(e => `
                                     <div class="flex justify-between border-b border-dashed border-slate-200 py-0.5">
-                                        <span class="text-slate-700">${e.description}</span>
-                                        <span class="font-bold">R$ ${e.amount.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                        <span class="text-slate-700 truncate mr-1">${e.description}</span>
+                                        <span class="font-bold shrink-0">R$ ${e.amount.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
                                     </div>
                                 `).join('')}
                             </div>
-                            <div class="flex justify-between pt-2 border-t border-slate-400 font-extrabold text-xs">
+                            <div class="flex justify-between pt-1 border-t border-slate-400 font-extrabold text-[9px]">
                                 <span>TOTAL GERAL DAS DESPESAS</span>
                                 <span>R$ ${totalDespesasGeral.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
                             </div>
                         </div>
-
                     </div>
                 </body></html>
             `);
@@ -1161,10 +1241,8 @@
         function gerarRelatorioPorAptoModal() {
             const condo = getActiveCondo();
             if(!condo || condo.units.length === 0) { alert('Cadastre unidades primeiro!'); return; }
-            
             const sel = document.getElementById('modalSelectUnit');
             sel.innerHTML = condo.units.map(u => `<option value="${u.id}">${u.name} ${u.resident ? '('+u.resident+')' : ''} (Fração: ${u.area.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits: 2})})</option>`).join('');
-            
             document.getElementById('modalRelApto').classList.remove('hidden');
         }
 
@@ -1223,7 +1301,6 @@
                             </div>
                             <button onclick="window.print()" class="no-print bg-orange-600 text-white px-5 py-2 rounded-xl font-bold shadow">🖨️ Imprimir</button>
                         </div>
-
                         <div class="bg-orange-50 p-4 rounded-xl border border-orange-200 mb-6 flex justify-between items-center">
                             <div>
                                 <span class="block text-xs font-bold text-orange-700 uppercase">Unidade</span>
@@ -1236,7 +1313,6 @@
                                 <span class="text-lg font-bold text-orange-950">${u.area.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits: 2})}</span>
                             </div>
                         </div>
-
                         <h3 class="font-bold text-slate-700 text-sm uppercase mb-3">Extrato de Lançamentos da Unidade (${refTexto})</h3>
                         <table class="w-full text-sm mb-6 border border-slate-200 rounded-lg overflow-hidden">
                             <thead class="bg-orange-50 text-orange-800"><tr><th class="p-3 text-left">Descrição</th><th class="p-3 text-right">Valor</th></tr></thead>
@@ -1251,7 +1327,6 @@
                                 `).join('') : '<tr><td colspan="2" class="p-3 text-center text-slate-400">Nenhum lançamento neste mês</td></tr>'}
                             </tbody>
                         </table>
-
                         <div class="flex justify-between items-center bg-slate-800 text-white p-5 rounded-2xl shadow-md">
                             <span class="font-bold uppercase text-sm">Total a Pagar</span>
                             <span class="text-2xl font-extrabold text-orange-400">R$ ${totalUnidade.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits: 2})}</span>
@@ -1389,7 +1464,7 @@
                                 <img src="${qrUrl}" alt="QR Code PIX" class="w-28 h-28 object-contain">
                             </div>
                             <div class="flex-1 w-full text-left">
-                                <h4 class="font-bold text-orange-800 text-sm mb-1">💰 Pagamento Automático via PIX</h4>
+                                <h4 class="font-bold text-orange-800 text-sm mb-1">💰 Pagamento via PIX</h4>
                                 <p class="text-sm text-slate-700 leading-tight">Escaneie o QR Code no app do seu banco. O valor de <strong>R$ ${totalUnidade.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits: 2})}</strong> já será preenchido.</p>
                                 <div class="mt-2 pt-2 border-t border-orange-200 border-dashed">
                                     <p class="text-[10px] text-slate-500 uppercase font-bold">Chave PIX (Copia e Cola):</p>
@@ -1422,7 +1497,7 @@
                                     ${u.resident ? '<span class="block text-[11px] text-orange-800 font-bold"><b>Morador:</b> '+u.resident+'</span>' : ''}
                                     <span class="text-xs font-bold text-orange-700 mt-1 block">Fração: ${u.area.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits: 2})}</span>
                                 </div>
-                                <div class="bg-red-50 px-4 py-2 rounded-xl border border-red-200 text-right">
+                                <div class="vencimento-box bg-red-50 px-4 py-2 rounded-xl border border-red-200 text-right">
                                     <span class="block text-[10px] font-bold text-red-600 uppercase">Vencimento</span>
                                     <span class="block text-lg font-extrabold text-red-800">${vencFormatado}</span>
                                 </div>
